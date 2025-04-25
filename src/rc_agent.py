@@ -12,16 +12,15 @@ class RCAgent:
     def run(self):
         while True:
             # 执行计算过程
-            logger.info("开始设计过程")
+            logger.info("开始设计过程...")
             result = self.design_process()
-            logger.info(f"设计过程完成，结果为：\n{result}\n")
             # 解析输出并生成网表
-            logger.info("开始解析过程")
+            logger.info("开始解析过程...")
             self.parse_process(result)
             # 运行仿真
-            logger.info("开始仿真过程")
+            logger.info("开始仿真过程...")
             self.run_simulation()
-            
+            logger.info("仿真完成！您可以在当前目录下找到仿真结果文件 rc_bandpass.cir， 在logs目录下找到仿真日志文件。")
             # 询问用户是否满意仿真结果
             user_choice = input("\n您对仿真结果满意吗？(y/n): ")
             if user_choice.lower() == 'y':
@@ -57,12 +56,6 @@ class RCAgent:
                     print("参数已更新！")
                 except ValueError:
                     print("输入无效，使用原参数继续...")
-        
-    def design(self):
-        pass
-    
-    def parse(self):
-        pass
 
 
     @time_decorator
@@ -93,10 +86,10 @@ class RCAgent:
 
     @time_decorator
     def run_simulation(self):
-        netlist_file_path = self.config["netlist_file_path"]
+        # netlist_file_path = self.config["netlist_file_path"]
         
-        print(f"\n正在运行ngspice仿真 {netlist_file_path}...")
-        os.system(f"ngspice {netlist_file_path}")
+        # print(f"\n正在运行ngspice仿真 {netlist_file_path}...")
+        # os.system(f"ngspice {netlist_file_path}")
         print("仿真完成！")
     
     

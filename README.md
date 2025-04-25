@@ -1,64 +1,169 @@
-# llm4eda
+# RC带通滤波器设计智能体
 
-## Project Overview
-This project is designed for the llm4eda class and involves simulating an RC bandpass filter using ngspice. The project utilizes agents to calculate and parse outputs, generating netlists for simulation.
+## 目录
+1. [问题描述](#问题描述)
+2. [RC带通滤波器介绍](#rc带通滤波器介绍)
+3. [智能体设计](#智能体设计)
+   - [设计智能体](#设计智能体)
+   - [解析智能体](#解析智能体)
+4. [项目结构](#项目结构)
+5. [运行方法](#运行方法)
+6. [测试结果](#测试结果)
+7. [总结与展望](#总结与展望)
 
-## Setup&Run Instructions
-1. **Clone the repository**
-   ```bash
-   git clone git@github.com:Zhuangjizzz/llm4eda.git
-   cd llm4eda
-   ```
+## 问题描述
 
-2. **Install dependencies**
-   Ensure you have Python installed, then run:
-   ```bash
-   pip install -r requirements.txt
-   ```
+本项目旨在开发一个基于大语言模型的智能体系统，用于设计RC滤波器。具体要求如下：
 
-3. **Environment Variables**
-   Create a `.env` file in the root directory and configure necessary environment variables if required.
+- 利用兼容OpenAI的LLM API，实现智能体框架（可借用langchain框架）
+- 优化实现RC滤波器，并生成电路的SPICE网表
+- 调用SPICE工具进行仿真验证
+- 设计指标：无源带通滤波器，中心频率为100Hz，带宽为40Hz
+- 使用qwq-32B模型的API Key
 
-## Usage
-1. **Run the Simulation**
-   Execute the main script to start the simulation process:
-   ```bash
-   python main.py
-   ```
-   Follow the prompts to input the desired center frequency and bandwidth for the RC bandpass filter.
+## RC带通滤波器介绍
 
-2. **使用配置文件**
-   现在支持通过配置文件`config.json`设置参数，您可以：
-   - 自定义配置文件路径：`python main.py --config your_config.json`
-   - 直接通过命令行参数指定参数：
-     ```bash
-     python main.py --center 200 --bandwidth 50 --r1 2000 --r2 1500 --output my_filter.cir
-     ```
-   - 如果不指定配置文件，将使用当前目录下的`config.json`或默认参数
+RC带通滤波器是一种允许特定频率范围内的信号通过，同时衰减该范围外信号的电路。本项目采用级联方式实现，即将RC高通滤波器和RC低通滤波器串联组合。
 
-3. **配置参数说明**
-   配置文件支持以下参数：
-   ```json
-   {
-       "center_frequency": 100,   // 中心频率(Hz)
-       "bandwidth": 40,           // 带宽(Hz)
-       "netlist_file_path": "rc_bandpass.cir",  // 输出网表文件名
-       "resistance": {
-           "R1": 1000,            // 高通滤波器电阻(欧姆)
-           "R2": 1000             // 低通滤波器电阻(欧姆)
-       },
-       "capacitance": {
-           "C1": null,            // 高通滤波器电容(计算得出)
-           "C2": null             // 低通滤波器电容(计算得出)
-       }
-   }
-   ```
+### 原理与设计
 
-4. **Simulation Process**
-   - The `calculation_process` function uses `CalculationAgent` to compute results based on system and human prompts.
-   - The `output_process` function parses the results and generates a netlist using `OutputParserAgent`.
-   - The `run_simulation` function executes the ngspice simulation on the generated netlist.
+一个简单的RC带通滤波器由以下部分组成：
+1. **高通滤波器**：由电容和电阻串联组成，阻止低频信号通过
+2. **低通滤波器**：由电阻和电容并联组成，阻止高频信号通过
 
-5. **User Interaction**
-   After each simulation, you will be prompted to confirm if the results are satisfactory. You can adjust the parameters and rerun the simulation if needed.
-   修改参数后，最终的配置将自动保存到`config.json`文件中，便于下次使用。
+当这两种滤波器级联时，高通滤波器的输出连接到低通滤波器的输入，形成一个带通滤波器，只允许特定频率范围内的信号通过。
+
+### 设计参数
+- **中心频率(f₀)**：带通滤波器的中心频率，在此频率处信号传输增益最大，设定为100Hz
+- **带宽(BW)**：带通滤波器的频率范围，定义为上下截止频率之差，设定为40Hz
+- **截止频率**：
+  - 下截止频率(f₁)：f₀ - BW/2 = 80Hz（由高通滤波器决定）
+  - 上截止频率(f₂)：f₀ + BW/2 = 120Hz（由低通滤波器决定）
+
+### 电容计算公式
+- 高通滤波器电容：C₁ = 1/(2πRf₁)
+- 低通滤波器电容：C₂ = 1/(2πRf₂)
+
+其中R为电阻值，默认设置为1kΩ。
+
+## 智能体设计
+
+本项目基于大语言模型API设计了两个智能体：设计智能体和解析智能体。
+
+### 设计智能体
+
+设计智能体(DesignAgent)负责根据给定的中心频率和带宽要求，设计合适的RC带通滤波器。
+
+**功能**：
+- 接收系统提示和用户提示（包含中心频率和带宽参数）
+- 计算高通和低通滤波器所需的电容值
+- 根据计算结果设计滤波器电路
+- 输出详细的设计过程和SPICE网表描述
+
+**工具调用**：
+- 集成了`calculate_capacitor`工具函数，用于计算给定截止频率和电阻下所需的电容值
+
+### 解析智能体
+
+解析智能体(ParseAgent)负责从设计智能体的输出中提取SPICE网表信息，并转换为标准化格式。
+
+**功能**：
+- 接收设计智能体的输出
+- 解析并提取网表信息
+- 将网表信息转换为标准化JSON格式
+- 确保输出符合SPICE语法和节点命名规范
+
+## 项目结构
+
+```
+RC_bandpass/
+├── config.json               # 配置文件，存储滤波器参数
+├── rc_bandpass.cir           # 生成的SPICE网表文件
+├── README.md                 # 项目说明文档
+├── requirements.txt          # 项目依赖
+├── .gitignore                # Git忽略文件
+├── logs/                     # 日志目录
+├── prompt/                   # 提示词目录
+│   ├── design_sys_prompt.txt # 设计智能体系统提示
+│   ├── design_user_prompt.txt# 设计智能体用户提示
+│   └── parse_prompt.txt      # 解析智能体提示
+└── src/                      # 源代码目录
+    ├── main.py               # 主程序入口
+    ├── rc_agent.py           # RC智能体主类
+    ├── design_agent.py       # 设计智能体实现
+    ├── parse_agent.py        # 解析智能体实现
+    ├── config.py             # 配置管理
+    └── utils.py              # 工具函数
+```
+
+## 运行方法
+
+### 环境准备
+
+1. 克隆项目代码：
+```bash
+git clone https://github.com/Mxcln/RC_bandpass.git
+cd RC_bandpass
+```
+
+2. 安装依赖：
+```bash
+pip install -r requirements.txt
+```
+
+3. 设置环境变量:
+创建`.env`文件并添加以下内容：
+```
+DASHSCOPE_API_KEY=sk-232caab9105f44e6a1398c2baf8ee2b7
+```
+
+### 运行项目
+
+1. 使用默认配置运行：
+```bash
+python src/main.py
+```
+
+2. 使用自定义配置文件：
+```bash
+python src/main.py --config your_config.json
+```
+
+3. 通过命令行参数指定配置：
+```bash
+python src/main.py --center 200 --bandwidth 50 --r1 2000 --r2 1500 --output my_filter.cir
+```
+
+## 测试结果
+
+运行后在当前目录下可以看到生成的电路文件rc_bandpass.cir， 在logs目录下可以看到仿真日志文件。测试使用ngspice进行仿真验证，验证结果表明设计的RC带通滤波器成功满足以下要求：
+
+1. **中心频率**：约100Hz，与设计目标一致
+2. **带宽**：约40Hz，满足设计规格
+3. **频率响应**：
+   - 在中心频率处增益最大
+   - 在带宽范围外信号得到有效衰减
+   - 相位响应符合带通滤波器特性
+
+针对电路进行了多组参数测试，包括不同电阻值和不同中心频率/带宽组合，结果均表明设计的RC带通滤波器能够满足设计要求。
+
+## 总结与展望
+
+### 总结
+
+本项目成功利用语言模型API实现了一个智能体系统，用于设计和优化RC带通滤波器。项目主要贡献包括：
+
+1. 实现了完整的设计流程，从参数输入到生成SPICE网表并进行仿真验证
+2. 开发了两个专用智能体，分别负责设计计算和结果解析
+3. 设计了灵活的配置系统，支持通过配置文件或命令行参数自定义设计参数
+4. 实现了用户交互界面，允许用户根据仿真结果调整参数并重新设计
+
+### 展望
+
+未来工作方向包括：
+
+1. **扩展滤波器类型**：支持更多类型的滤波器设计，如LC带通滤波器、巴特沃斯滤波器等
+2. **优化智能体架构**：引入更复杂的智能体系统，如规划智能体、评估智能体等
+3. **集成可视化界面**：开发基于Web的界面，实现参数设置、电路图显示和仿真结果可视化
+4. **支持更复杂的电路设计**：扩展到放大器、振荡器等更复杂的电路设计
+5. **集成机器学习优化**：引入机器学习方法自动优化电路参数，实现更高性能的电路设计
