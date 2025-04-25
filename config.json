@@ -1,0 +1,16 @@
+{
+    "center_frequency": 100.0,
+    "bandwidth": 40.0,
+    "resistance": {
+        "R1": 1000.0,
+        "R2": 1000.0
+    },
+    "capacitance": {
+        "C1": null,
+        "C2": null
+    },
+    "netlist_file_path": "./rc_bandpass.cir",
+    "design_sys_prompt": "./prompt/design_sys_prompt.txt",
+    "design_user_prompt": "./prompt/design_user_prompt.txt",
+    "parse_prompt": "./prompt/parse_prompt.txt"
+}
